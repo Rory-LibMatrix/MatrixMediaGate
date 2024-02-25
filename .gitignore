@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+/src/
+*.tar.xz
+/patches/
+appsettings.Local*.json
+nixpkgs/
+/result
+*.DotSettings.user
+

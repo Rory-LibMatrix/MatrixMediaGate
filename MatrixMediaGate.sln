@@ -1,0 +1,19 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+#
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MatrixMediaGate", "MatrixMediaGate\MatrixMediaGate.csproj", "{7726DC69-DD44-4FBA-A4FD-C340D282A943}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7726DC69-DD44-4FBA-A4FD-C340D282A943}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7726DC69-DD44-4FBA-A4FD-C340D282A943}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7726DC69-DD44-4FBA-A4FD-C340D282A943}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7726DC69-DD44-4FBA-A4FD-C340D282A943}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+EndGlobal
