@@ -22,6 +22,9 @@
               nativeBuildInputs = with pkgs; [
                   gcc
               ];
+              meta = {
+                mainProgram = "MatrixMediaGate";
+              };
             };
         };
     };
