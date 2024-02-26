@@ -10,5 +10,4 @@ public class ProxyConfiguration {
     public required string Upstream { get; set; }
     public required string Host { get; set; }
     public required List<string> TrustedServers { get; set; }
-    public bool ForceHost { get; set; }
 }
