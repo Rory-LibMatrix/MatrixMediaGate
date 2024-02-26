@@ -15,14 +15,10 @@ var app = builder.Build();
 async Task Proxy(ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, ILogger<Program> logger) {
     if (ctx is null) return;
     var path = ctx.Request.Path.Value;
-    if(path is null) return;
+    if (path is null) return;
     if (path.StartsWith('/'))
         path = path[1..];
     path += ctx.Request.QueryString.Value;
-    
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-    auth.UpdateAuth();
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
     using var handler = new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.None };
 
@@ -30,7 +26,8 @@ async Task Proxy(ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, IL
     var method = new HttpMethod(ctx.Request.Method);
     using var req = new HttpRequestMessage(method, path);
     foreach (var header in ctx.Request.Headers) {
-        if (header.Key != "Accept-Encoding" && header.Key != "Content-Type" && header.Key != "Content-Length") req.Headers.Add(header.Key, header.Value.ToArray());
+        // if (header.Key != "Accept-Encoding" && header.Key != "Content-Type" && header.Key != "Content-Length")
+            req.Headers.Add(header.Key, header.Value.ToArray());
     }
 
     if (ctx.Request.ContentLength > 0) {
@@ -44,7 +41,8 @@ async Task Proxy(ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, IL
     using var response = await hc.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
     ctx.Response.Headers.Clear();
     foreach (var header in response.Headers) {
-        if (header.Key != "Transfer-Encoding") ctx.Response.Headers[header.Key] = header.Value.ToArray();
+        // if (header.Key != "Transfer-Encoding")
+            ctx.Response.Headers[header.Key] = header.Value.ToArray();
     }
 
     ctx.Response.StatusCode = (int)response.StatusCode;
@@ -56,9 +54,17 @@ async Task Proxy(ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, IL
     await ctx.Response.CompleteAsync();
 }
 
+async Task ProxyMaybeAuth(ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, ILogger<Program> logger) {
+    if (ctx is null) return;
+
+    await auth.UpdateAuth();
+
+    await Proxy(cfg, auth, ctx, logger);
+}
+
 async Task ProxyMedia(string serverName, ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, ILogger<Program> logger) {
     if (cfg.TrustedServers.Contains(serverName) || auth.ValidateAuth()) {
-        await Proxy(cfg, auth, ctx, logger);
+        await ProxyMaybeAuth(cfg, auth, ctx, logger); // Some clients may send Authorization header...
     }
     else {
         ctx.Response.StatusCode = 403;
@@ -71,7 +77,8 @@ async Task ProxyMedia(string serverName, ProxyConfiguration cfg, AuthValidator a
     }
 }
 
-app.Map("{*_}", Proxy);
+app.Map("{*_}", ProxyMaybeAuth);
+app.Map("/_matrix/federation/{*_}", Proxy);
 
 foreach (var route in (string[]) [
              "/_matrix/media/{version}/download/{serverName}/{mediaId}",
