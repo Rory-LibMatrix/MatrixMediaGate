@@ -15,7 +15,7 @@ public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg
 
     public async Task<bool> UpdateAuth(HttpContext ctx) {
         if (ctx.Connection.RemoteIpAddress is null) return false;
-        var remote = GetRemote(ctx);
+        var remote = GetRemoteAddress(ctx);
         if (string.IsNullOrWhiteSpace(remote)) return false;
 
         if (_authCache.TryGetValue(remote, out var value)) {
@@ -75,12 +75,7 @@ public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg
         }
     }
 
-    private string? GetRemote(HttpContext ctx) {
-        foreach (var (key, value) in ctx.Request.Headers) {
-            Console.WriteLine($"Authorized (ignore me) - Headers: {key}: {value}");
-        }
-
-        // X-Real-IP X-Forwarded-For
+    private string? GetRemoteAddress(HttpContext ctx) {
         if (ctx.Request.Headers.TryGetValue("X-Real-IP", out var xRealIp)) {
             return xRealIp.ToString();
         }
