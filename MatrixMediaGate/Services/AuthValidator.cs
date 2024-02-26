@@ -5,6 +5,7 @@ namespace MatrixMediaGate.Services;
 
 public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg) {
     private readonly Dictionary<string, DateTime> _authCache = new();
+
     private readonly HttpClient _hc = new() {
         BaseAddress = new Uri(cfg.Upstream),
         DefaultRequestHeaders = {
@@ -12,36 +13,45 @@ public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg
         }
     };
 
-    public async Task UpdateAuth(HttpContext ctx) {
-        if (ctx.Connection.RemoteIpAddress is null) return;
-        var remote = ctx.Connection.RemoteIpAddress.ToString();
-        
+    public async Task<bool> UpdateAuth(HttpContext ctx) {
+        if (ctx.Connection.RemoteIpAddress is null) return false;
+        var remote = GetRemote(ctx);
+        if (string.IsNullOrWhiteSpace(remote)) return false;
+
         if (_authCache.TryGetValue(remote, out var value)) {
             if (value > DateTime.Now.AddSeconds(30)) {
-                return;
+                return true;
             }
 
             _authCache.Remove(remote);
         }
 
-        string? token = getToken(ctx);
-        if (token is null) return;
+        string? token = GetToken(ctx);
+        if (string.IsNullOrWhiteSpace(token)) return false;
         using var req = new HttpRequestMessage(HttpMethod.Get, $"{cfg.Upstream}/_matrix/client/v3/account/whoami?access_token={token}");
         var response = await _hc.SendAsync(req);
 
-        if (response.Content.Headers.ContentType?.MediaType != "application/json") return;
-        var content = await response.Content.ReadAsStringAsync();
-        var json = JsonDocument.Parse(content);
-        if (json.RootElement.TryGetProperty("user_id", out var userId)) {
-            _authCache[remote] = DateTime.Now.AddMinutes(5);
-            logger.LogInformation("Authenticated {userId} on {remote}, expiring at {time}", userId, remote, _authCache[remote]);
+        try {
+            var content = await response.Content.ReadAsStringAsync();
+            var json = JsonDocument.Parse(content);
+            if (json.RootElement.TryGetProperty("user_id", out var userId)) {
+                _authCache[remote] = DateTime.Now.AddMinutes(5);
+                logger.LogInformation("Authenticated {userId} on {remote}, expiring at {time}", userId, remote, _authCache[remote]);
+                return true;
+            }
         }
+        catch (Exception e) {
+            logger.LogError(e, "Failed to authenticate {remote}", remote);
+            return false;
+        }
+
+        return false;
     }
 
     public bool ValidateAuth(HttpContext ctx) {
         if (ctx.Connection.RemoteIpAddress is null) return false;
         var remote = ctx.Connection.RemoteIpAddress.ToString();
-        
+
         if (_authCache.ContainsKey(remote)) {
             if (_authCache[remote] > DateTime.Now) {
                 return true;
@@ -53,7 +63,7 @@ public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg
         return false;
     }
 
-    private string? getToken(HttpContext ctx) {
+    public string? GetToken(HttpContext ctx) {
         if (ctx.Request.Headers.TryGetValue("Authorization", out var header)) {
             return header.ToString().Split(' ', 2)[1];
         }
@@ -63,5 +73,13 @@ public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg
         else {
             return null;
         }
+    }
+
+    private string? GetRemote(HttpContext ctx) {
+        foreach (var (key, value) in ctx.Request.Headers) {
+            Console.WriteLine($"Authorized (ignore me) - Headers: {key}: {value}");
+        }
+
+        return ctx.Connection.RemoteIpAddress?.ToString();
     }
 }

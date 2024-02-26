@@ -68,8 +68,9 @@ async Task ProxyMaybeAuth(HttpClient hc, ProxyConfiguration cfg, AuthValidator a
 }
 
 async Task ProxyMedia(string serverName, ProxyConfiguration cfg, HttpClient hc, AuthValidator auth, HttpContext ctx, ILogger<Program> logger) {
-    if (cfg.TrustedServers.Contains(serverName) || auth.ValidateAuth(ctx)) {
-        await ProxyMaybeAuth(hc, cfg, auth, ctx, logger); // Some clients may send Authorization header...
+    // Some clients may send Authorization header, so we handle this last...
+    if (cfg.TrustedServers.Contains(serverName) || auth.ValidateAuth(ctx) || await auth.UpdateAuth(ctx)) {
+        await Proxy(hc, cfg, ctx, logger);
     }
     else {
         ctx.Response.StatusCode = 403;
