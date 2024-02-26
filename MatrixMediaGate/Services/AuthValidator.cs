@@ -80,6 +80,15 @@ public class AuthValidator(ILogger<AuthValidator> logger, ProxyConfiguration cfg
             Console.WriteLine($"Authorized (ignore me) - Headers: {key}: {value}");
         }
 
+        // X-Real-IP X-Forwarded-For
+        if (ctx.Request.Headers.TryGetValue("X-Real-IP", out var xRealIp)) {
+            return xRealIp.ToString();
+        }
+
+        if (ctx.Request.Headers.TryGetValue("X-Forwarded-For", out var xForwardedFor)) {
+            return xForwardedFor.ToString();
+        }
+
         return ctx.Connection.RemoteIpAddress?.ToString();
     }
 }
