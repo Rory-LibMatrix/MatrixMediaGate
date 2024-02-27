@@ -5,13 +5,12 @@ using MatrixMediaGate;
 using MatrixMediaGate.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Host.UseSystemd();
 builder.Services.AddSingleton<ProxyConfiguration>();
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 builder.Services.AddSingleton<AuthValidator>();
 builder.Services.AddSingleton<HttpClient>(services => {
     var cfg = services.GetRequiredService<ProxyConfiguration>();
-    // var handler = new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.None };
     return new HttpClient() {
         BaseAddress = new Uri(cfg.Upstream),
         MaxResponseContentBufferSize = 1 * 1024 * 1024 // 1MB
@@ -21,7 +20,6 @@ builder.Services.AddSingleton<HttpClient>(services => {
 var app = builder.Build();
 
 async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger<Program> logger) {
-    if (ctx is null) return;
     var path = ctx.Request.Path.Value;
     if (path is null) return;
     if (path.StartsWith('/'))
@@ -34,6 +32,7 @@ async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger
         if (header.Key != "Accept-Encoding" && header.Key != "Content-Type" && header.Key != "Content-Length")
             req.Headers.Add(header.Key, header.Value.ToArray());
     }
+
     req.Headers.Host = cfg.Host;
 
     if (ctx.Request.ContentLength > 0) {
@@ -84,9 +83,9 @@ async Task ProxyMedia(string serverName, ProxyConfiguration cfg, HttpClient hc, 
 }
 
 app.Map("{*_}", ProxyMaybeAuth);
-app.Map("/_matrix/federation/{*_}", Proxy);
+app.Map("/_matrix/federation/{*_}", Proxy); // Don't bother with auth for federation
 
-foreach (var route in (string[]) [
+foreach (var route in (string[]) [ // Require recent auth for these routes
              "/_matrix/media/{version}/download/{serverName}/{mediaId}",
              "/_matrix/media/{version}/download/{serverName}/{mediaId}/{fileName}",
              "/_matrix/media/{version}/thumbnail/{serverName}/{mediaId}",
