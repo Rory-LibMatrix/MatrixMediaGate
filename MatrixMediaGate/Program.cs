@@ -1,13 +1,12 @@
-using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using MatrixMediaGate;
 using MatrixMediaGate.Services;
+using Microsoft.AspNetCore.Http.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSystemd();
 builder.Services.AddSingleton<ProxyConfiguration>();
-builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 builder.Services.AddSingleton<AuthValidator>();
 builder.Services.AddSingleton<HttpClient>(services => {
     var cfg = services.GetRequiredService<ProxyConfiguration>();
@@ -20,11 +19,9 @@ builder.Services.AddSingleton<HttpClient>(services => {
 var app = builder.Build();
 
 async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger<Program> logger) {
-    var path = ctx.Request.Path.Value;
-    if (path is null) return;
+    var path = ctx.Request.GetEncodedPathAndQuery();
     if (path.StartsWith('/'))
         path = path[1..];
-    path += ctx.Request.QueryString.Value;
 
     var method = new HttpMethod(ctx.Request.Method);
     using var req = new HttpRequestMessage(method, path);
@@ -41,7 +38,7 @@ async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger
         if (ctx.Request.ContentLength != null) req.Content.Headers.ContentLength = ctx.Request.ContentLength;
     }
 
-    logger.LogInformation($"Proxying {method} {path} to {hc.BaseAddress}{path}");
+    logger.LogInformation("Proxying {method} {path} to {target}", method, path, hc.BaseAddress + path);
 
     using var response = await hc.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
     ctx.Response.Headers.Clear();
@@ -62,7 +59,6 @@ async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger
 
 async Task ProxyMaybeAuth(HttpClient hc, ProxyConfiguration cfg, AuthValidator auth, HttpContext ctx, ILogger<Program> logger) {
     await auth.UpdateAuth(ctx);
-
     await Proxy(hc, cfg, ctx, logger);
 }
 
@@ -75,8 +71,7 @@ async Task ProxyMedia(string serverName, ProxyConfiguration cfg, HttpClient hc, 
         ctx.Response.StatusCode = 403;
         ctx.Response.ContentType = "application/json";
         await ctx.Response.StartAsync();
-        var json = JsonSerializer.Serialize(new { errcode = "M_FORBIDDEN", error = "Unauthenticated access to remote media has been disabled on this server." });
-        await ctx.Response.WriteAsync(json);
+        await JsonSerializer.SerializeAsync(ctx.Response.Body, new { errcode = "M_FORBIDDEN", error = "Unauthenticated access to remote media has been disabled on this server." });
         await ctx.Response.Body.FlushAsync();
         await ctx.Response.CompleteAsync();
     }
