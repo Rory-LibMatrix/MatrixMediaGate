@@ -34,7 +34,8 @@ async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger
 
     if (ctx.Request.ContentLength > 0) {
         req.Content = new StreamContent(ctx.Request.Body);
-        if (ctx.Request.ContentType != null) req.Content.Headers.ContentType = new MediaTypeHeaderValue(ctx.Request.ContentType);
+        if (ctx.Request.ContentType != null) req.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(ctx.Request.ContentType);
+        
         if (ctx.Request.ContentLength != null) req.Content.Headers.ContentLength = ctx.Request.ContentLength;
     }
 
