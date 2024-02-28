@@ -25,9 +25,14 @@ async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger
 
     var method = new HttpMethod(ctx.Request.Method);
     using var req = new HttpRequestMessage(method, path);
+    hc.DefaultRequestHeaders.Clear();
+    req.Headers.Clear();
     foreach (var header in ctx.Request.Headers) {
-        if (header.Key != "Accept-Encoding" && header.Key != "Content-Type" && header.Key != "Content-Length")
+        if (header.Key != "Accept-Encoding" && header.Key != "Content-Type" && header.Key != "Content-Length") {
+            // req.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+            req.Headers.Remove(header.Key);
             req.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+        }
     }
 
     req.Headers.Host = cfg.Host;
