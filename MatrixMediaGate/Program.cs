@@ -126,7 +126,9 @@ var jsonOptions = new JsonSerializerOptions {
 // We dump failed requests to disk
 async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage? req, HttpResponseMessage? resp, Exception? e) {
     if (ctx.Response.StatusCode >= 400 && cfg.DumpFailedRequests) {
-        var path = Path.Combine(cfg.DumpPath, "failed_requests", $"{resp.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{ctx.Request.Path}.json");
+        var dir = Path.Combine(cfg.DumpPath, "failed_requests");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(cfg.DumpPath, "failed_requests", $"{resp.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{ctx.Request.GetEncodedPathAndQuery()}.json");
         await using var file = File.Create(path);
         await JsonSerializer.SerializeAsync(file, new {
             Self = new {
