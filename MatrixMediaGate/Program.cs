@@ -132,12 +132,37 @@ async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, $"{(int)resp?.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{ctx.Request.GetEncodedPathAndQuery().Replace('/', '_')}.json");
         await using var file = File.Create(path);
+        
+        //collect data
+        JsonObject? requestJsonContent = null;
+        try {
+            requestJsonContent = await ctx.Request.ReadFromJsonAsync<JsonObject>();
+        }
+        catch (Exception) {
+            // ignored, we might not have a request body...
+        }
+        
+        JsonObject? responseJsonContent = null;
+        string? responseRawContent = null;
+        try {
+            responseJsonContent = await resp.Content.ReadFromJsonAsync<JsonObject>();
+        }
+        catch (Exception) {
+            try {
+                responseRawContent = await resp.Content.ReadAsStringAsync();
+            }
+            catch (Exception) {
+                // ignored, we might not have a response body...
+            }
+        }
+        
         await JsonSerializer.SerializeAsync(file, new {
             Self = new {
                 Request = new {
                     ctx.Request.Method,
                     Url = ctx.Request.GetEncodedUrl(),
-                    ctx.Request.Headers
+                    ctx.Request.Headers,
+                    JsonContent = requestJsonContent
                 },
                 Response = new {
                     ctx.Response.StatusCode,
@@ -157,8 +182,8 @@ async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage
                     resp.Headers,
                     resp.Content.Headers.ContentType,
                     resp.Content.Headers.ContentLength,
-                    JsonContent = resp.Content.Headers.ContentType?.MediaType == "application/json" ? await resp.Content.ReadFromJsonAsync<JsonObject>() : null,
-                    TextContent = resp.Content.Headers.ContentType?.MediaType != "application/json" ? await resp.Content.ReadAsStringAsync() : null
+                    JsonContent = responseJsonContent,
+                    TextContent = responseRawContent
                 }
             },
             Exception = new {
