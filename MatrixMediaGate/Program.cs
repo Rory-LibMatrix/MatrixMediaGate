@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MatrixMediaGate;
 using MatrixMediaGate.Services;
 using Microsoft.AspNetCore.Http.Extensions;
@@ -17,6 +18,10 @@ builder.Services.AddSingleton<HttpClient>(services => {
 });
 
 var app = builder.Build();
+
+var jsonOptions = new JsonSerializerOptions {
+    WriteIndented = true
+};
 
 app.Map("{*_}", ProxyMaybeAuth);
 app.Map("/_matrix/federation/{*_}", Proxy); // Don't bother with auth for federation
@@ -91,11 +96,10 @@ async Task Proxy(HttpClient hc, ProxyConfiguration cfg, HttpContext ctx, ILogger
         if (ctx.Response.StatusCode >= 400) {
             await ProxyDump(cfg, ctx, upstreamRequest, upstreamResponse, exception);
         }
-        
+
         upstreamRequest?.Dispose();
         upstreamResponse?.Dispose();
     }
-
 }
 
 // We attempt to update auth, but we don't require it
@@ -120,15 +124,13 @@ async Task ProxyMedia(string serverName, ProxyConfiguration cfg, HttpClient hc, 
     }
 }
 
-var jsonOptions = new JsonSerializerOptions {
-    WriteIndented = true
-};
+
 // We dump failed requests to disk
 async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage? req, HttpResponseMessage? resp, Exception? e) {
     if (ctx.Response.StatusCode >= 400 && cfg.DumpFailedRequests) {
         var dir = Path.Combine(cfg.DumpPath, "failed_requests");
         Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, $"{resp.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{ctx.Request.GetEncodedPathAndQuery().Replace('/','_')}.json");
+        var path = Path.Combine(dir, $"{(int)resp?.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{ctx.Request.GetEncodedPathAndQuery().Replace('/', '_')}.json");
         await using var file = File.Create(path);
         await JsonSerializer.SerializeAsync(file, new {
             Self = new {
@@ -154,7 +156,9 @@ async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage
                     resp.StatusCode,
                     resp.Headers,
                     resp.Content.Headers.ContentType,
-                    resp.Content.Headers.ContentLength
+                    resp.Content.Headers.ContentLength,
+                    JsonContent = resp.Content.Headers.ContentType?.MediaType == "application/json" ? await resp.Content.ReadFromJsonAsync<JsonObject>() : null,
+                    TextContent = resp.Content.Headers.ContentType?.MediaType != "application/json" ? await resp.Content.ReadAsStringAsync() : null
                 }
             },
             Exception = new {
@@ -162,6 +166,7 @@ async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage
                 Message = e?.Message.ReplaceLineEndings().Split(Environment.NewLine),
                 StackTrace = e?.StackTrace?.ReplaceLineEndings().Split(Environment.NewLine)
             }
-        });
+            // ReSharper disable once AccessToModifiedClosure
+        }, jsonOptions);
     }
 }
