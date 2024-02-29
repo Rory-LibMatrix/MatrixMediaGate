@@ -130,7 +130,7 @@ async Task ProxyDump(ProxyConfiguration cfg, HttpContext ctx, HttpRequestMessage
     if (ctx.Response.StatusCode >= 400 && cfg.DumpFailedRequests) {
         var dir = Path.Combine(cfg.DumpPath, "failed_requests");
         Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, $"{(int)resp?.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{ctx.Request.GetEncodedPathAndQuery().Replace('/', '_')}.json");
+        var path = Path.Combine(dir, $"{(int)resp?.StatusCode}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{ctx.Request.GetEncodedPathAndQuery().Replace('/', '_')}.json");
         await using var file = File.Create(path);
         
         //collect data
